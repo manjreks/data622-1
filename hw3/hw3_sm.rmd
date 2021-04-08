@@ -503,69 +503,44 @@ acc_rf
 ## Boosting
 
 This is another kind on ensemble algorithm in which several model are combined, but instead of running the model is parallel and then combining results, here model are run in series, with each output serving as an input to the next. With each new run of the classifier, the results are improved. Also, each classifiers performance can actually be rather low (shallow trees can be used for example), and with feeding the results to a new classifier, the overall effect is an improved performance.
-
-
 ```{r}
-#load gbm library
-library (gbm)
+set.seed(622)
+index <- createDataPartition(loan$Loan_Status, p = 0.7, list = FALSE)
+train_data <- loan[index, ]
+test_data  <- loan[-index, ]
+```
+```{r}
+model_gbm <- caret::train(Loan_Status ~ .,
+                          data = train_data,
+                          method = "gbm",
+                          preProcess = c("scale", "center"),
+                          trControl = trainControl(method = "repeatedcv", 
+                                                  number = 5, 
+                                                  repeats = 3, 
+                                                  verboseIter = FALSE),
+                          verbose = 0)
+model_gbm
+```
+We can plot performance of the model as follows
+```{r}
+plot(model_gbm)
+
 ```
 
-Run gradient boost model
-
 ```{r}
-set.seed(123)
-loan_boost =gbm(Loan_Status ~., data = training, 
-              n.trees=500,
-              interaction.depth=4,
-                shrinkage=0.01,
-              bag.fraction=0.5,
-              distribution="multinomial",
-              verbose=FALSE,
-              cv.folds = 5,
-              n.cores=2
-              )
-```
+summary(model_gbm)
 
-Check the performance of the model, also check the optimum number of trees for "cv" method.
-Looks like optimum numbers of tress is 111. We will run our predictions with that number.
-
-```{r}
-# Check performance using 5-fold cross-validation
-best.iter <- gbm.perf(loan_boost, method="cv")
-print(best.iter)
-summary(loan_boost)
 ```
 From the model we see that features Credit_History, TotalIncome and LoanAmount features are most important variables 
 of the model and Gender is the least(which is good).
 
-
 ```{r}
-
-pred = predict.gbm(loan_boost,
-                    newdata = testing,
-                    n.trees = best.iter,
-                    type = "response")
-
-
+caret::confusionMatrix(
+  data = predict(model_gbm, test_data),  reference = test_data$Loan_Status)
 ```
 
+With gradient boosting we got accuracy of 80.33%
 
 
 
-```{r}
 
-labels = colnames(pred)[apply(pred, 1, which.max)]
-result = data.frame(testing$Loan_Status, labels)
-cm = confusionMatrix(testing$Loan_Status, as.factor(labels))
-print(cm)
-
-
-```
-```{r}
-#labels = colnames(pred)[apply(pred, 1, which.max)]
-loan_boost_table <- table(Actual = testing$Loan_Status, Predicted = labels)
-loan_boost_table
-acc_boost <-  sum(diag(loan_boost_table))/sum(loan_boost_table)
-acc_boost
-```
-So with gradient boosting we got 80.32% accuracy.
